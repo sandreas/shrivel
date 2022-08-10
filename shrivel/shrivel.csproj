@@ -1,0 +1,30 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <OutputType>Exe</OutputType>
+        <TargetFramework>net6.0</TargetFramework>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+        <LangVersion>10</LangVersion>
+        <InvariantGlobalization>true</InvariantGlobalization>
+        <PublishSingleFile>true</PublishSingleFile>
+        <PublishTrimmed>true</PublishTrimmed>
+        <TrimmerRemoveSymbols>true</TrimmerRemoveSymbols>
+        <PublishReadyToRun>true</PublishReadyToRun>
+        <EnableCompressionInSingleFile>true</EnableCompressionInSingleFile>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <PackageReference Include="CliWrap" Version="3.4.4" />
+        <PackageReference Include="CSharp.OperationResult" Version="0.1.6" />
+        <PackageReference Include="Jint" Version="3.0.0-beta-2038" />
+        <PackageReference Include="Microsoft.Extensions.Configuration" Version="6.0.0" />
+        <PackageReference Include="Microsoft.Extensions.Configuration.EnvironmentVariables" Version="6.0.0" />
+        <PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="6.0.0" />
+        <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="6.0.0" />
+        <PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" Version="6.0.0" />
+        <PackageReference Include="Newtonsoft.Json" Version="13.0.1" />
+        <PackageReference Include="Sandreas.Files" Version="1.1.1" />
+        <PackageReference Include="Spectre.Console" Version="0.44.0" />
+    </ItemGroup>
+</Project>

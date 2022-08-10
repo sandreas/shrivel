@@ -1,0 +1,9 @@
+*/obj/
+*/bin/
+*/var/
+!*/var/*.gitkeep
+*/dist/
+*.DotSettings.user
+.idea/
+.experiments/
+nuget.config
