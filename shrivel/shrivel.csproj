@@ -27,4 +27,10 @@
         <PackageReference Include="Sandreas.Files" Version="1.1.1" />
         <PackageReference Include="Spectre.Console" Version="0.44.0" />
     </ItemGroup>
+
+    <ItemGroup>
+      <Folder Include="Helpers" />
+      <Folder Include="Services" />
+      <Folder Include="var\images\output" />
+    </ItemGroup>
 </Project>

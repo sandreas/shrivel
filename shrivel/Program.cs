@@ -1,19 +1,13 @@
-﻿
-using System;
-using System.Collections.Generic;
-using System.IO.Abstractions;
-using System.Linq;
-using System.Net.Http;
-using System.Threading;
-using Jint;
+﻿using System.IO.Abstractions;
+using CliWrap;
 using Microsoft.Extensions.DependencyInjection;
-using Newtonsoft.Json;
-using Newtonsoft.Json.Converters;
-using Newtonsoft.Json.Serialization;
 using Sandreas.Files;
 using shrivel;
 using shrivel.Commands;
+using shrivel.Commands.Settings;
+using shrivel.Converters;
 using shrivel.DependencyInjection;
+using shrivel.Extensions;
 using Spectre.Console;
 using Spectre.Console.Cli;
 
@@ -28,6 +22,30 @@ services.AddSingleton<FileSystem>();
 services.AddSingleton<FileWalker>();
 services.AddSingleton<SpectreConsoleService>();
 
+services.AddSingleton(s =>
+{
+    var convertCommandSettings = settingsProvider.Get<ConvertCommandSettings>();
+    var command = Cli.Wrap(convertCommandSettings?.ConvertCommand ?? "convert").WithValidation(CommandResultValidation.None);
+    return new ImageMagickConverter(s.GetRequiredService<FileSystem>(), command, convertCommandSettings);
+});
+services.AddSingleton(s =>
+{
+    // svg has no "sizes", so override FileNameTemplate setting manually
+    // todo: optimize this into real setting
+    var convertCommandSettings = settingsProvider.Get<ConvertCommandSettings>().DeepCopy() ?? new ConvertCommandSettings();
+    convertCommandSettings.FileNameTemplate = "{name}.{extension}";
+    var command = Cli.Wrap(convertCommandSettings?.SvgoCommand ?? "svgo").WithValidation(CommandResultValidation.None);
+    return new SvgoConverter(s.GetRequiredService<FileSystem>(), command, convertCommandSettings);
+});
+
+services.AddSingleton(s =>
+{
+    var convertCommandSettings = settingsProvider.Get<ConvertCommandSettings>().DeepCopy() ??new ConvertCommandSettings();
+    convertCommandSettings.FileNameTemplate = "{name}_{size}.webp";
+    var command = Cli.Wrap(convertCommandSettings?.CwebpCommand ?? "cwebp").WithValidation(CommandResultValidation.None);
+    return new CwebpConverter(s.GetRequiredService<FileSystem>(), command, convertCommandSettings);
+});
+
 var app = new CommandApp(new CustomTypeRegistrar(services));
 
 app.Configure(config =>
@@ -35,12 +53,11 @@ app.Configure(config =>
     config.SetInterceptor(new CustomCommandInterceptor(settingsProvider));
     config.UseStrictParsing();
     config.CaseSensitivity(CaseSensitivity.None);
-    config.SetApplicationName("tone");
-    config.SetApplicationVersion("0.0.8");
+    config.SetApplicationName("shrivel");
+    config.SetApplicationVersion("0.0.1");
     config.ValidateExamples();
     config.AddCommand<ConvertCommand>("convert")
         .WithDescription("convert images from input to output")
-
         ;
     
 
