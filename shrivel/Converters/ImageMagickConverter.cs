@@ -1,53 +1,54 @@
 using System.IO.Abstractions;
 using CliWrap;
 using CliWrap.Buffered;
+using shrivel.Commands.Settings;
 
 namespace shrivel.Converters;
 
-public class ImageMagickConverter: ImageConverterBase
+public class ImageMagickConverter : ImageConverterBase
 {
-    private static readonly string[] SupportedExtensions = {
+    private static readonly string[] SupportedExtensions =
+    {
         "jpg", "jpeg", "gif", "png"
     };
+
     private readonly Command _command;
-    private readonly IImageConverterSettings? _options;
-    
-    public ImageMagickConverter(FileSystem fs, Command command,IImageConverterSettings? options) : base(fs)
+
+    public ImageMagickConverter(FileSystem fs, Command command, ConvertCommandSettings settings) : base(fs, settings)
     {
-        _options = options;
         _command = command;
     }
-    public override async Task<IEnumerable<string>> ConvertAsync(string sourceFilePath)
+
+    public override async Task<IEnumerable<string>> ConvertAsync(string sourceFilePath, string fileNameTemplate,
+        int? size)
     {
         var result = new List<string>();
         var sourceFile = Fs.FileInfo.FromFileName(sourceFilePath);
-        if(_options == null || !sourceFile.Exists || !IsExtensionSupported(sourceFile.Extension, SupportedExtensions))
+        if (!sourceFile.Exists || !IsExtensionSupported(sourceFile.Extension, SupportedExtensions))
         {
             return result;
         }
-        
-        foreach(var size in _options.Sizes)
-        {
-            var destinationPath = BuildDestination(sourceFilePath, _options, size);
-            var destinationFile = Fs.FileInfo.FromFileName(destinationPath);
-            Fs.Directory.CreateDirectory(destinationFile.Directory.FullName);
-            
-            await _command.WithArguments(a =>
-            {
-                a.Add(sourceFile.FullName);
-                if(size> 0)
-                {
-                    a.Add("-resize").Add(size);
-                }
-                a.Add(destinationFile.FullName);
 
-            }).ExecuteBufferedAsync();
-            if(destinationFile.Exists){
-                result.Add(destinationFile.FullName);
+
+        var destinationPath = BuildDestination(sourceFilePath, fileNameTemplate, size);
+        var destinationFile = Fs.FileInfo.FromFileName(destinationPath);
+        Fs.Directory.CreateDirectory(destinationFile.Directory.FullName);
+
+        await _command.WithArguments(a =>
+        {
+            a.Add(sourceFile.FullName);
+            if (size > 0)
+            {
+                a.Add("-resize").Add(size);
             }
+
+            a.Add(destinationFile.FullName);
+        }).ExecuteBufferedAsync();
+        if (destinationFile.Exists)
+        {
+            result.Add(destinationFile.FullName);
         }
+
         return result;
     }
-
-
 }

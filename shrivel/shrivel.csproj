@@ -25,6 +25,7 @@
         <PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" Version="6.0.0" />
         <PackageReference Include="Newtonsoft.Json" Version="13.0.1" />
         <PackageReference Include="Sandreas.Files" Version="1.1.1" />
+        <PackageReference Include="SixLabors.ImageSharp" Version="2.1.3" />
         <PackageReference Include="Spectre.Console" Version="0.44.0" />
     </ItemGroup>
 

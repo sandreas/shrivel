@@ -8,6 +8,7 @@ using shrivel.Commands.Settings;
 using shrivel.Converters;
 using shrivel.DependencyInjection;
 using shrivel.Extensions;
+using shrivel.Optimizers;
 using Spectre.Console;
 using Spectre.Console.Cli;
 
@@ -24,26 +25,38 @@ services.AddSingleton<SpectreConsoleService>();
 
 services.AddSingleton(s =>
 {
-    var convertCommandSettings = settingsProvider.Get<ConvertCommandSettings>();
-    var command = Cli.Wrap(convertCommandSettings?.ConvertCommand ?? "convert").WithValidation(CommandResultValidation.None);
+    var convertCommandSettings = settingsProvider.Get<ConvertCommandSettings>() ?? new ConvertCommandSettings();
+    var command = Cli.Wrap(convertCommandSettings.ConvertCommand ?? "convert").WithValidation(CommandResultValidation.None);
     return new ImageMagickConverter(s.GetRequiredService<FileSystem>(), command, convertCommandSettings);
 });
 services.AddSingleton(s =>
 {
     // svg has no "sizes", so override FileNameTemplate setting manually
     // todo: optimize this into real setting
-    var convertCommandSettings = settingsProvider.Get<ConvertCommandSettings>().DeepCopy() ?? new ConvertCommandSettings();
-    convertCommandSettings.FileNameTemplate = "{name}.{extension}";
-    var command = Cli.Wrap(convertCommandSettings?.SvgoCommand ?? "svgo").WithValidation(CommandResultValidation.None);
+    var convertCommandSettings = settingsProvider.Get<ConvertCommandSettings>() ?? new ConvertCommandSettings();
+    var command = Cli.Wrap(convertCommandSettings.SvgoCommand ?? "svgo").WithValidation(CommandResultValidation.None);
     return new SvgoConverter(s.GetRequiredService<FileSystem>(), command, convertCommandSettings);
 });
 
 services.AddSingleton(s =>
 {
-    var convertCommandSettings = settingsProvider.Get<ConvertCommandSettings>().DeepCopy() ??new ConvertCommandSettings();
-    convertCommandSettings.FileNameTemplate = "{name}_{size}.webp";
-    var command = Cli.Wrap(convertCommandSettings?.CwebpCommand ?? "cwebp").WithValidation(CommandResultValidation.None);
+    var convertCommandSettings = settingsProvider.Get<ConvertCommandSettings>() ?? new ConvertCommandSettings();
+    var command = Cli.Wrap(convertCommandSettings.CwebpCommand ?? "cwebp").WithValidation(CommandResultValidation.None);
     return new CwebpConverter(s.GetRequiredService<FileSystem>(), command, convertCommandSettings);
+});
+
+services.AddSingleton(s =>
+{
+    var convertCommandSettings = settingsProvider.Get<ConvertCommandSettings>() ?? new ConvertCommandSettings();
+    var command = Cli.Wrap(convertCommandSettings.JpegoptimCommand ?? "jpegoptim").WithValidation(CommandResultValidation.None);
+    return new JpegoptimOptimizer(s.GetRequiredService<FileSystem>(), command);
+});
+
+services.AddSingleton(s =>
+{
+    var convertCommandSettings = settingsProvider.Get<ConvertCommandSettings>() ?? new ConvertCommandSettings();
+    var command = Cli.Wrap(convertCommandSettings.PngquantCommand ?? "pngquant").WithValidation(CommandResultValidation.None);
+    return new PngquantOptimizer(s.GetRequiredService<FileSystem>(), command);
 });
 
 var app = new CommandApp(new CustomTypeRegistrar(services));
