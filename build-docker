@@ -1,0 +1,6 @@
+#!/bin/sh
+
+docker build -t shrivel .
+
+# mozjpeg
+# https://github.com/kornelski/cavif-rs/releases/download/v1.3.3/cavif-1.3.3.zip

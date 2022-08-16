@@ -72,7 +72,10 @@ app.Configure(config =>
     config.AddCommand<ConvertCommand>("convert")
         .WithDescription("convert images from input to output")
         ;
-    
+    config.AddCommand<RunCommand>("run")
+        .WithDescription("run instruction set")
+        ;
+
 
     if (propagateExceptions)
     {
