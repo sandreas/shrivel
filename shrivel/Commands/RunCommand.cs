@@ -33,6 +33,7 @@ public class RunCommand : AsyncCommand<RunCommandSettings>
             return await Task.FromResult((int)ReturnCode.GeneralError);
         }
 
+        
         var commandRunners = config.Commands
             .Select(kvp => new CommandRunner(fs, settings.Input, settings.Output, kvp.Key, kvp.Value))
             .ToDictionary(c => c.Id, c => c);
@@ -47,12 +48,14 @@ public class RunCommand : AsyncCommand<RunCommandSettings>
                 {
                     continue;
                 }
+                
+                /*
                 if(inst.Filters.ContainsKey("extensions") && !inst.Filters["extensions"].Contains(file?.Extension.TrimStart('.').ToLowerInvariant()))
                 {
                     Console.WriteLine("filter did not match: " + inst.Command);
                     continue;
                 }
-                
+                */
                 var runner = commandRunners[inst.Command];
                 await runner.RunAsync(file?.ToString()??"", inst);
                 

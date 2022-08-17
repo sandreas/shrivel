@@ -60,7 +60,25 @@ public class CommandRunner
             {
                 replacements[key] = value ?? "";
             }
+            
+            replacements = ResolveReplacementsRecursively(replacements); 
 
+            // check conditions
+            foreach(var (conditionType, conditionParameters) in instruction.Conditions)
+            {
+                var replacedConditionParameters =
+                    conditionParameters.Select(p => ReplaceCallParameter(p, replacements)).ToArray();
+                
+                var condition = BuildCondition(conditionType, replacedConditionParameters);
+                
+                if(!await condition.IsFulfilledAsync(sourceFile, replacements))
+                {
+                    Console.WriteLine($"file: {sourceFile}, condition type={condition.Type}, parameters=[{string.Join(", ", replacedConditionParameters)}] is not fulfilled - skipping run");
+                    return;
+                }
+                
+            }
+            
             var replacedCallParameters = CallParameters.Select(p => ReplaceCallParameter(p, replacements)).ToArray();
 
             var result = await Cli.Wrap(replacedCallParameters.First()).WithArguments(replacedCallParameters.Skip(1))
@@ -73,17 +91,40 @@ public class CommandRunner
 
     }
 
+    private ConditionBase BuildCondition(string conditionType, string[] conditionParameters) => conditionType switch
+    {
+        "sourceExtension" => new SourceExtensionCondition(conditionType, conditionParameters, _fs),
+        "imageSizeGreaterEqual" => new ImageNoUpscaleCondition(conditionType, conditionParameters),
+        "sourceIsNewer" => new SourceIsNewerCondition(conditionType, conditionParameters, _fs),
+        _ => new UnknownCondition(conditionType, conditionParameters)
+    };
+
+    private static Dictionary<string,string> ResolveReplacementsRecursively(Dictionary<string, string> replacements)
+    {
+
+        // var newReplacements = new Dictionary<string, string>();
+        
+        foreach(var (key,value) in replacements){
+            var counter = 0;
+            do
+            {
+                foreach (var (innerKey, innerValue) in replacements)
+                {
+                    replacements[key] = replacements[key].Replace("{" + innerKey + "}", innerValue);
+                }
+                counter++;
+            } while (replacements[key].Contains("{") && counter < 10);
+        }
+        return replacements;
+    }
+
     private string ReplaceCallParameter(string s, Dictionary<string, string> replacements)
     {
-        var counter = 0;
-        do
+
+        foreach (var (pattern, replacement) in replacements)
         {
-            foreach (var (pattern, replacement) in replacements)
-            {
-                s = s.Replace("{" + pattern + "}", replacement);
-            }
-            counter++;
-        } while (s.Contains("{") && counter < 10);
+            s = s.Replace("{" + pattern + "}", replacement);
+        }
         return s;
     }
 }
