@@ -1,19 +1,21 @@
 ﻿using System.IO.Abstractions;
-using CliWrap;
 using Microsoft.Extensions.DependencyInjection;
 using Sandreas.Files;
 using shrivel;
 using shrivel.Commands;
-using shrivel.Commands.Settings;
-using shrivel.Converters;
 using shrivel.DependencyInjection;
-using shrivel.Extensions;
-using shrivel.Optimizers;
 using Spectre.Console;
 using Spectre.Console.Cli;
 
 
+// manually handle args to define default command and debug behaviour
 var propagateExceptions = args.Contains("--debug");
+if (!args.Contains("run"))
+{
+    var argsList = new List<string>(new []{"run"});
+    argsList.AddRange(args);
+    args = argsList.ToArray();
+}
 
 var settingsProvider = new CustomCommandSettingsProvider();
 
@@ -23,41 +25,6 @@ services.AddSingleton<FileSystem>();
 services.AddSingleton<FileWalker>();
 services.AddSingleton<SpectreConsoleService>();
 
-services.AddSingleton(s =>
-{
-    var convertCommandSettings = settingsProvider.Get<ConvertCommandSettings>() ?? new ConvertCommandSettings();
-    var command = Cli.Wrap(convertCommandSettings.ConvertCommand ?? "convert").WithValidation(CommandResultValidation.None);
-    return new ImageMagickConverter(s.GetRequiredService<FileSystem>(), command, convertCommandSettings);
-});
-services.AddSingleton(s =>
-{
-    // svg has no "sizes", so override FileNameTemplate setting manually
-    // todo: optimize this into real setting
-    var convertCommandSettings = settingsProvider.Get<ConvertCommandSettings>() ?? new ConvertCommandSettings();
-    var command = Cli.Wrap(convertCommandSettings.SvgoCommand ?? "svgo").WithValidation(CommandResultValidation.None);
-    return new SvgoConverter(s.GetRequiredService<FileSystem>(), command, convertCommandSettings);
-});
-
-services.AddSingleton(s =>
-{
-    var convertCommandSettings = settingsProvider.Get<ConvertCommandSettings>() ?? new ConvertCommandSettings();
-    var command = Cli.Wrap(convertCommandSettings.CwebpCommand ?? "cwebp").WithValidation(CommandResultValidation.None);
-    return new CwebpConverter(s.GetRequiredService<FileSystem>(), command, convertCommandSettings);
-});
-
-services.AddSingleton(s =>
-{
-    var convertCommandSettings = settingsProvider.Get<ConvertCommandSettings>() ?? new ConvertCommandSettings();
-    var command = Cli.Wrap(convertCommandSettings.JpegoptimCommand ?? "jpegoptim").WithValidation(CommandResultValidation.None);
-    return new JpegoptimOptimizer(s.GetRequiredService<FileSystem>(), command);
-});
-
-services.AddSingleton(s =>
-{
-    var convertCommandSettings = settingsProvider.Get<ConvertCommandSettings>() ?? new ConvertCommandSettings();
-    var command = Cli.Wrap(convertCommandSettings.PngquantCommand ?? "pngquant").WithValidation(CommandResultValidation.None);
-    return new PngquantOptimizer(s.GetRequiredService<FileSystem>(), command);
-});
 
 var app = new CommandApp(new CustomTypeRegistrar(services));
 
@@ -69,14 +36,10 @@ app.Configure(config =>
     config.SetApplicationName("shrivel");
     config.SetApplicationVersion("0.0.1");
     config.ValidateExamples();
-    config.AddCommand<ConvertCommand>("convert")
-        .WithDescription("convert images from input to output")
-        ;
     config.AddCommand<RunCommand>("run")
         .WithDescription("run instruction set")
         ;
-
-
+    
     if (propagateExceptions)
     {
         config.PropagateExceptions();

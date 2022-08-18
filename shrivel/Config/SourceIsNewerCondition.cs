@@ -10,8 +10,7 @@ public class SourceIsNewerCondition: ConditionBase
     {
         _fs = fs;
     }
-
-
+    
     public override Task<bool> IsFulfilledAsync(string sourceFilePath, IDictionary<string, string> vars)
     {
         var sourceFile = _fs.FileInfo.FromFileName(sourceFilePath);

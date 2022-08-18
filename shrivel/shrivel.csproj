@@ -32,6 +32,6 @@
     <ItemGroup>
       <Folder Include="Helpers" />
       <Folder Include="Services" />
-      <Folder Include="var\images\output" />
+      <Folder Include="var\images\output\img" />
     </ItemGroup>
 </Project>

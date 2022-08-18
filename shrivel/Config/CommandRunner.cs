@@ -1,4 +1,6 @@
+using System.Diagnostics;
 using System.IO.Abstractions;
+using System.Security.AccessControl;
 using CliWrap;
 using CliWrap.Buffered;
 
@@ -15,21 +17,28 @@ public class CommandRunner
     public CommandRunner(FileSystem fs, string input, string output, string id, string[] callParameters)
     {
         _fs = fs;
-        _input = input;
-        _output = output;
+        _input = NormalizeDirectoryPath(input);
+        _output = NormalizeDirectoryPath(output);
         Id = id;
         CallParameters = callParameters;
     }
     
+    private static string NormalizeDirectoryPath(string path){
+        return path.TrimEnd('/').TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar;
+    }
 
 
-    public async Task RunAsync(string sourceFile, Instruction instruction)
+    public async Task<(int code, string message)> RunAsync(string sourceFilePath, Instruction instruction)
     {
-        var relative = "";
-        if (sourceFile.StartsWith(_input))
+        var inputDirectory = _fs.FileInfo.FromFileName(_input);
+        var sourceFile = _fs.FileInfo.FromFileName(sourceFilePath);
+
+        if (!_fs.Directory.Exists(inputDirectory.FullName) || !sourceFile.Exists)
         {
-            relative = sourceFile[_input.Length..];
+            return (1, "inputDir or sourceFile did not exist");
         }
+
+        var relative = sourceFile.FullName[inputDirectory.FullName.Length..];
 
         var baseDestination = _fs.FileInfo.FromFileName(Path.Join(_output, relative));
         var name = baseDestination.Name;
@@ -40,55 +49,77 @@ public class CommandRunner
         }
 
         var ext = baseDestination.Extension.TrimStart('.');
-        var path = baseDestination.DirectoryName;
+        var relBase = baseDestination.ToString();
+        var path = NormalizeDirectoryPath(relBase?[..relBase.LastIndexOf(Path.DirectorySeparatorChar)] ?? "") ;
+
         if (path.StartsWith(_output))
         {
             path = path[_output.Length..].TrimStart('/');
         }
+
+        var outputDirectory = _fs.FileInfo.FromFileName(_output);
+
         var replacements = new Dictionary<string, string>()
         {
-            { "input", _input },
-            { "output", _output },
-            { "source", sourceFile },
+            { "input", inputDirectory.FullName },
+            { "output", outputDirectory.FullName },
+            { "source", sourceFile.FullName },
             { "tempPath", Path.GetTempPath() },
-            { "path",  path},
+            { "path", path },
             { "name", name },
             { "extension", ext },
         };
-        foreach(var vars in instruction.Runs)        {
+        foreach (var vars in instruction.Runs)
+        {
             foreach (var (key, value) in vars)
             {
                 replacements[key] = value ?? "";
             }
-            
-            replacements = ResolveReplacementsRecursively(replacements); 
+
+            replacements = ResolveReplacementsRecursively(replacements);
 
             // check conditions
-            foreach(var (conditionType, conditionParameters) in instruction.Conditions)
+            foreach (var (conditionType, conditionParameters) in instruction.Conditions)
             {
                 var replacedConditionParameters =
                     conditionParameters.Select(p => ReplaceCallParameter(p, replacements)).ToArray();
-                
+
                 var condition = BuildCondition(conditionType, replacedConditionParameters);
-                
-                if(!await condition.IsFulfilledAsync(sourceFile, replacements))
+
+                if (!await condition.IsFulfilledAsync(sourceFilePath, replacements))
                 {
-                    Console.WriteLine($"file: {sourceFile}, condition type={condition.Type}, parameters=[{string.Join(", ", replacedConditionParameters)}] is not fulfilled - skipping run");
-                    return;
+                    // Console.WriteLine();
+                    return (0, $"file: {sourceFilePath}, condition type={condition.Type}, parameters=[{string.Join(", ", replacedConditionParameters)}] is not fulfilled - skipping run");
                 }
-                
+            }
+
+            if(replacements.ContainsKey("destination"))
+            {
+                var destination = _fs.FileInfo.FromFileName(replacements["destination"]);
+                if(!_fs.Directory.Exists(destination.DirectoryName))
+                {
+                    _fs.Directory.CreateDirectory(destination.DirectoryName);
+                }
             }
             
             var replacedCallParameters = CallParameters.Select(p => ReplaceCallParameter(p, replacements)).ToArray();
 
-            var result = await Cli.Wrap(replacedCallParameters.First()).WithArguments(replacedCallParameters.Skip(1))
+            var stopWatch = new Stopwatch();
+            stopWatch.Start();
+            Console.WriteLine("    -> '" + string.Join("' '", replacedCallParameters.Select(p => p.Replace("'", "\'"))) + "'");
+            var result = await Cli.Wrap(replacedCallParameters.First())
+                .WithWorkingDirectory(_fs.Directory.GetCurrentDirectory())
+                .WithArguments(replacedCallParameters.Skip(1))
+                .WithValidation(CommandResultValidation.None)
                 .ExecuteBufferedAsync();
-            if(result.ExitCode != 0)
+            Console.WriteLine($"    -> {stopWatch.ElapsedMilliseconds}ms");
+            if (result.ExitCode != 0)
             {
-                break;
+                return (result.ExitCode, result.StandardError + result.StandardOutput);
             }
         }
 
+        return (0, "");
     }
 
     private ConditionBase BuildCondition(string conditionType, string[] conditionParameters) => conditionType switch
@@ -99,12 +130,12 @@ public class CommandRunner
         _ => new UnknownCondition(conditionType, conditionParameters)
     };
 
-    private static Dictionary<string,string> ResolveReplacementsRecursively(Dictionary<string, string> replacements)
+    private static Dictionary<string, string> ResolveReplacementsRecursively(Dictionary<string, string> replacements)
     {
-
         // var newReplacements = new Dictionary<string, string>();
-        
-        foreach(var (key,value) in replacements){
+
+        foreach (var (key, value) in replacements)
+        {
             var counter = 0;
             do
             {
@@ -112,19 +143,21 @@ public class CommandRunner
                 {
                     replacements[key] = replacements[key].Replace("{" + innerKey + "}", innerValue);
                 }
+
                 counter++;
             } while (replacements[key].Contains("{") && counter < 10);
         }
+
         return replacements;
     }
 
-    private string ReplaceCallParameter(string s, Dictionary<string, string> replacements)
+    private static string ReplaceCallParameter(string s, Dictionary<string, string> replacements)
     {
-
         foreach (var (pattern, replacement) in replacements)
         {
             s = s.Replace("{" + pattern + "}", replacement);
         }
+
         return s;
     }
 }
