@@ -1,3 +1,4 @@
+using System.IO.Abstractions;
 using Newtonsoft.Json;
 using Sandreas.Files;
 using shrivel.Commands.Settings;
@@ -41,9 +42,10 @@ public class RunCommand : AsyncCommand<RunCommandSettings>
         }
 
 
+        await ResetCommandLog(_fileWalker.FileSystem, config.Settings.CommandLog);
         var files = _fileWalker.WalkRecursive(config.Settings.Input).SelectFileInfo().Where(f => !_fileWalker.IsDir(f));
         var commandRunners = config.Commands
-            .Select(kvp => new CommandRunner(fs, config.Settings.Input, config.Settings.Output, kvp.Key, kvp.Value))
+            .Select(kvp => new CommandRunner(fs, config.Settings, kvp.Key, kvp.Value))
             .ToDictionary(c => c.Id, c => c);
         
         var returnCode = ReturnCode.Success;
@@ -71,5 +73,11 @@ public class RunCommand : AsyncCommand<RunCommandSettings>
         }
 
         return await Task.FromResult((int)returnCode);
+    }
+    
+    private static async Task ResetCommandLog(FileSystem fs, string commandLogFile) {
+        if(!string.IsNullOrEmpty(commandLogFile)){
+            await fs.File.WriteAllTextAsync(commandLogFile, "");
+        }
     }
 }

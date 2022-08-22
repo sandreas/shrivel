@@ -1,6 +1,5 @@
 using System.Diagnostics;
 using System.IO.Abstractions;
-using System.Security.AccessControl;
 using CliWrap;
 using CliWrap.Buffered;
 
@@ -9,18 +8,21 @@ namespace shrivel.Config;
 public class CommandRunner
 {
     public readonly string Id;
-    public readonly string[] CallParameters;
+    private readonly string[] _callParameters;
     private readonly FileSystem _fs;
     private readonly string _input;
     private readonly string _output;
+    private readonly string _commandLogFile;
 
-    public CommandRunner(FileSystem fs, string input, string output, string id, string[] callParameters)
+    
+    public CommandRunner(FileSystem fs, ContainerSettings settings, string id, string[] callParameters)
     {
         _fs = fs;
-        _input = NormalizeDirectoryPath(input);
-        _output = NormalizeDirectoryPath(output);
+        _input = NormalizeDirectoryPath(settings.Input);
+        _output = NormalizeDirectoryPath(settings.Output);
+        _commandLogFile = settings.CommandLog;
         Id = id;
-        CallParameters = callParameters;
+        _callParameters = callParameters;
     }
     
     private static string NormalizeDirectoryPath(string path){
@@ -69,6 +71,8 @@ public class CommandRunner
             { "name", name },
             { "extension", ext },
         };
+
+        
         foreach (var vars in instruction.Runs)
         {
             foreach (var (key, value) in vars)
@@ -78,20 +82,17 @@ public class CommandRunner
 
             replacements = ResolveReplacementsRecursively(replacements);
 
-            // check conditions
-            foreach (var (conditionType, conditionParameters) in instruction.Conditions)
+            var replacedCallParameters = _callParameters.Select(p => ReplaceCallParameter(p, replacements)).ToArray();
+
+
+            var (conditionsMet, message) = await CheckConditions(sourceFilePath, replacements, replacedCallParameters, instruction);
+            if(!conditionsMet)
             {
-                var replacedConditionParameters =
-                    conditionParameters.Select(p => ReplaceCallParameter(p, replacements)).ToArray();
-
-                var condition = BuildCondition(conditionType, replacedConditionParameters);
-
-                if (!await condition.IsFulfilledAsync(sourceFilePath, replacements))
-                {
-                    // Console.WriteLine();
-                    return (0, $"file: {sourceFilePath}, condition type={condition.Type}, parameters=[{string.Join(", ", replacedConditionParameters)}] is not fulfilled - skipping run");
-                }
+                Console.WriteLine(message);
+                continue;
             }
+            
+            await LogCallParameters(replacedCallParameters);
 
             if(replacements.ContainsKey("destination"))
             {
@@ -102,11 +103,10 @@ public class CommandRunner
                 }
             }
             
-            var replacedCallParameters = CallParameters.Select(p => ReplaceCallParameter(p, replacements)).ToArray();
 
             var stopWatch = new Stopwatch();
             stopWatch.Start();
-            Console.WriteLine("    -> '" + string.Join("' '", replacedCallParameters.Select(p => p.Replace("'", "\'"))) + "'");
+            Console.WriteLine("    -> " + CallParametersToCommandString(replacedCallParameters));
             var result = await Cli.Wrap(replacedCallParameters.First())
                 .WithWorkingDirectory(_fs.Directory.GetCurrentDirectory())
                 .WithArguments(replacedCallParameters.Skip(1))
@@ -119,9 +119,44 @@ public class CommandRunner
             }
         }
 
+
+        
         return (0, "");
     }
+    
+    private async Task<(bool conditionsMet, string message)> CheckConditions(string sourceFilePath, Dictionary<string, string> replacements, IEnumerable<string> replacedCallParameters, Instruction instruction)
+    {
+        // check conditions
+        foreach (var (conditionType, conditionParameters) in instruction.Conditions)
+        {
+            var replacedConditionParameters =
+                conditionParameters.Select(p => ReplaceCallParameter(p, replacements)).ToArray();
 
+            var condition = BuildCondition(conditionType, replacedConditionParameters);
+
+            if (!await condition.IsFulfilledAsync(sourceFilePath, replacements))
+            {
+                // Console.WriteLine();
+                if(condition is SourceIsNewerCondition){
+                    await LogCallParameters(replacedCallParameters);
+                }
+                return (false, $"file: {sourceFilePath}, condition type={condition.Type}, parameters=[{string.Join(", ", replacedConditionParameters)}] is not fulfilled - skipping run");
+            }
+        }
+
+        return (true, "");
+    }
+
+    private async Task LogCallParameters(IEnumerable<string> replacedCallParameters, string prefix="") {
+        if(!string.IsNullOrEmpty(_commandLogFile)){
+            await _fs.File.AppendAllTextAsync(_commandLogFile, prefix+CallParametersToCommandString(replacedCallParameters) + "\n");
+        }
+    }
+
+    private static string CallParametersToCommandString(IEnumerable<string> callParameters)            {
+        return "'" + string.Join("' '", callParameters.Select(p => p.Replace("'", "\'"))) + "'";
+    }
+    
     private ConditionBase BuildCondition(string conditionType, string[] conditionParameters) => conditionType switch
     {
         "sourceExtension" => new SourceExtensionCondition(conditionType, conditionParameters, _fs),
@@ -134,7 +169,7 @@ public class CommandRunner
     {
         // var newReplacements = new Dictionary<string, string>();
 
-        foreach (var (key, value) in replacements)
+        foreach (var (key, _) in replacements)
         {
             var counter = 0;
             do
