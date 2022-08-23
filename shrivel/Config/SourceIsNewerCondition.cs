@@ -16,7 +16,8 @@ public class SourceIsNewerCondition: ConditionBase
         var sourceFile = _fs.FileInfo.FromFileName(sourceFilePath);
         var destinationFile = _fs.FileInfo.FromFileName(Parameters.First());
 
-        if(!destinationFile.Exists)
+        // todo: zero length files may be allowed in context other than images
+        if(!destinationFile.Exists || destinationFile.Length == 0)
         {
             return Task.FromResult(true);
         }
