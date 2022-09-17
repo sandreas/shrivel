@@ -43,6 +43,7 @@ public class CommandRunner
         var relative = sourceFile.FullName[inputDirectory.FullName.Length..];
 
         var baseDestination = _fs.FileInfo.FromFileName(Path.Join(_output, relative));
+        
         var name = baseDestination.Name;
 
         if (baseDestination.Extension != "" && baseDestination.Name.EndsWith(baseDestination.Extension))

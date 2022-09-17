@@ -10,7 +10,7 @@ using Spectre.Console.Cli;
 
 // manually handle args to define default command and debug behaviour
 var propagateExceptions = args.Contains("--debug");
-if (!args.Contains("run") && !args.Contains("clean"))
+if (!args.Contains("run") && !args.Contains("clean") && !args.Contains("process"))
 {
     var argsList = new List<string>(new []{"run"});
     argsList.AddRange(args);
@@ -41,6 +41,9 @@ app.Configure(config =>
         ;
     config.AddCommand<CleanCommand>("clean")
         .WithDescription("clean directory with unnecessary images")
+        ;
+    config.AddCommand<ProcessCommand>("process")
+        .WithDescription("process images with filters")
         ;
 
     if (propagateExceptions)
