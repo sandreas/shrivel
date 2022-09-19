@@ -15,5 +15,8 @@ public class ProcessCommandSettings : CommandSettings
     [Description("Input file or directory")]
     [CommandArgument(0, "[input]")]
     public string Input { get; set; } = "";
-    
+
+    [CommandOption("--merge-pdf")] public string MergePdf { get; set; } = "";
+    [CommandOption("--delete-merge-source")] public bool DeleteMergeSources { get; set; } = false;
+
 }
